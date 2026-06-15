@@ -57,7 +57,7 @@ function Home() {
   const [result, setResult] = useState<{ resume: string; letter: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const canGenerate = role && resume.trim().length > 30 && jd.trim().length > 30 && !loading;
+  const canGenerate = !!role && resume.trim().length > 0 && jd.trim().length > 0 && !loading;
 
   const callDify = useServerFn(generateApplication);
 
