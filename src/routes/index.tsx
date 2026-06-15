@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, Copy, Download, FileText, Mail, Check, Loader2 } from "lucide-react";
+import { Sparkles, Copy, Download, FileText, Mail, Check, Loader2, Upload, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -51,15 +52,69 @@ const ROLES = [
 
 function Home() {
   const [role, setRole] = useState<string>("");
+  const [customRole, setCustomRole] = useState("");
   const [resume, setResume] = useState("");
+  const [resumeMode, setResumeMode] = useState<"paste" | "upload">("paste");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [jd, setJd] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ resume: string; letter: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const canGenerate = !!role && resume.trim().length > 0 && jd.trim().length > 0 && !loading;
+  const effectiveRole = role === "Other" ? customRole.trim() : role;
+  const canGenerate =
+    !!effectiveRole && resume.trim().length > 0 && jd.trim().length > 0 && !loading && !parsing;
 
   const callDify = useServerFn(generateApplication);
+
+  const parseFile = async (file: File): Promise<string> => {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".pdf")) {
+      const pdfjs: any = await import("pdfjs-dist");
+      const workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url" as any)).default;
+      pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: buf }).promise;
+      let text = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((it: any) => it.str).join(" ") + "\n\n";
+      }
+      return text.trim();
+    }
+    if (name.endsWith(".docx")) {
+      const mammoth: any = await import("mammoth/mammoth.browser" as any);
+      const buf = await file.arrayBuffer();
+      const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
+      return value.trim();
+    }
+    if (name.endsWith(".txt")) {
+      return (await file.text()).trim();
+    }
+    throw new Error("Unsupported file type. Use PDF, DOCX, or TXT.");
+  };
+
+  const handleFile = async (file: File) => {
+    setParsing(true);
+    setUploadedFile(file);
+    try {
+      const text = await parseFile(file);
+      if (!text) throw new Error("No text could be extracted from the file.");
+      setResume(text);
+      toast.success(`Parsed ${file.name}`);
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to parse file.");
+      setUploadedFile(null);
+      setResume("");
+    } finally {
+      setParsing(false);
+    }
+  };
+
 
   const handleGenerate = async () => {
     if (!canGenerate) {
@@ -71,7 +126,7 @@ function Home() {
     try {
       const out = await callDify({
         data: {
-          targetRole: role,
+          targetRole: effectiveRole,
           currentResume: resume,
           jobDescription: jd,
         },
@@ -173,20 +228,114 @@ function Home() {
                   ))}
                 </SelectContent>
               </Select>
+              {role === "Other" && (
+                <div className="animate-fade-in-up space-y-2 pt-2">
+                  <Label htmlFor="customRole" className="text-navy">
+                    Specify target role
+                  </Label>
+                  <Input
+                    id="customRole"
+                    value={customRole}
+                    onChange={(e) => setCustomRole(e.target.value)}
+                    placeholder="e.g. Solutions Architect"
+                    className="h-11"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="resume" className="text-navy">
-                Paste current resume
-              </Label>
-              <Textarea
-                id="resume"
-                value={resume}
-                onChange={(e) => setResume(e.target.value)}
-                placeholder="Paste the full text of your resume here..."
-                className="min-h-[180px] resize-y"
-              />
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-navy">Current resume</Label>
+                {uploadedFile && resumeMode === "upload" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadedFile(null);
+                      setResume("");
+                    }}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" /> Remove
+                  </button>
+                )}
+              </div>
+              <Tabs
+                value={resumeMode}
+                onValueChange={(v) => setResumeMode(v as "paste" | "upload")}
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="paste">Paste Text</TabsTrigger>
+                  <TabsTrigger value="upload">Upload File (PDF/Docx)</TabsTrigger>
+                </TabsList>
+                <TabsContent value="paste" className="mt-3">
+                  <Textarea
+                    id="resume"
+                    value={resume}
+                    onChange={(e) => setResume(e.target.value)}
+                    placeholder="Paste the full text of your resume here..."
+                    className="min-h-[180px] resize-y"
+                  />
+                </TabsContent>
+                <TabsContent value="upload" className="mt-3">
+                  <label
+                    htmlFor="resume-file"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOver(true);
+                    }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOver(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) void handleFile(f);
+                    }}
+                    className={`flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+                      dragOver
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-secondary/40 hover:border-primary/50 hover:bg-secondary/60"
+                    }`}
+                  >
+                    {parsing ? (
+                      <>
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">Parsing file…</p>
+                      </>
+                    ) : uploadedFile ? (
+                      <>
+                        <FileText className="h-6 w-6 text-primary" />
+                        <p className="text-sm font-medium text-navy">{uploadedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {resume.length.toLocaleString()} characters extracted · click to replace
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6 text-primary" />
+                        <p className="text-sm font-medium text-navy">
+                          Drag &amp; drop, or click to upload
+                        </p>
+                        <p className="text-xs text-muted-foreground">PDF, DOCX, or TXT</p>
+                      </>
+                    )}
+                    <input
+                      id="resume-file"
+                      type="file"
+                      accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleFile(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </TabsContent>
+              </Tabs>
             </div>
+
 
             <div className="space-y-2">
               <Label htmlFor="jd" className="text-navy">
