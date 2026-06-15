@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Sparkles, Copy, Download, FileText, Mail, Check, Loader2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -304,9 +306,11 @@ function ResultTabs({
             onDownload={() => onDownload(result.resume, "tailored-resume.txt")}
             copied={copied === "resume"}
           />
-          <pre className="mt-4 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-secondary/40 p-5 font-sans text-sm leading-relaxed text-navy">
-            {result.resume}
-          </pre>
+          <div className="markdown-content mt-4 max-h-[520px] overflow-auto rounded-lg border border-border bg-secondary/40 p-5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {result.resume}
+            </ReactMarkdown>
+          </div>
         </TabsContent>
 
         <TabsContent value="letter" className="mt-4">
@@ -315,9 +319,11 @@ function ResultTabs({
             onDownload={() => onDownload(result.letter, "cover-letter.txt")}
             copied={copied === "letter"}
           />
-          <pre className="mt-4 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-secondary/40 p-5 font-sans text-sm leading-relaxed text-navy">
-            {result.letter}
-          </pre>
+          <div className="markdown-content mt-4 max-h-[520px] overflow-auto rounded-lg border border-border bg-secondary/40 p-5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {result.letter}
+            </ReactMarkdown>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
@@ -373,39 +379,44 @@ function EmptyIllustration() {
 }
 
 function sampleResume(role: string, _resume: string, _jd: string) {
-  return `JANE DOE
-${role} | jane.doe@email.com | +1 (555) 123-4567 | linkedin.com/in/janedoe
+  return `## JANE DOE
+**${role}** | jane.doe@email.com | +1 (555) 123-4567 | linkedin.com/in/janedoe
 
-PROFESSIONAL SUMMARY
-Results-driven ${role} with a track record of shipping high-impact products and driving measurable outcomes. Tailored for the target role with emphasis on the keywords and competencies highlighted in the job description.
+## Professional Summary
+Results-driven **${role}** with a track record of shipping high-impact products and driving measurable outcomes. Tailored for the target role with emphasis on the keywords and competencies highlighted in the job description.
 
-CORE SKILLS
-• Strategy & Roadmapping  • Cross-functional Leadership  • Data-Driven Decision Making
-• Stakeholder Management  • Agile / Scrum                • Customer Research
+## Core Skills
+- Strategy & Roadmapping
+- Cross-functional Leadership
+- Data-Driven Decision Making
+- Stakeholder Management
+- Agile / Scrum
+- Customer Research
 
-EXPERIENCE
-Senior ${role} — Acme Corp (2022 – Present)
-• Led initiatives that increased key metric by 38% YoY by aligning teams around a focused roadmap.
-• Partnered with engineering and design to deliver 12 major releases on schedule.
-• Built a measurement framework adopted across 4 product lines.
+## Experience
 
-${role} — Northwind Labs (2019 – 2022)
-• Owned end-to-end delivery of a flagship feature used by 1.2M monthly users.
-• Reduced churn by 17% via targeted onboarding experiments.
+### Senior ${role} — Acme Corp (2022 – Present)
+- Led initiatives that increased key metric by **38% YoY** by aligning teams around a focused roadmap.
+- Partnered with engineering and design to deliver **12 major releases** on schedule.
+- Built a measurement framework adopted across **4 product lines**.
 
-EDUCATION
-B.S., Computer Science — State University (2019)`;
+### ${role} — Northwind Labs (2019 – 2022)
+- Owned end-to-end delivery of a flagship feature used by **1.2M monthly users**.
+- Reduced churn by **17%** via targeted onboarding experiments.
+
+## Education
+**B.S., Computer Science** — State University (2019)`;
 }
 
 function sampleLetter(role: string, _jd: string) {
   return `Dear Hiring Team,
 
-I'm excited to apply for the ${role} position. After reviewing the job description, I see a strong alignment between your needs and my background — particularly around strategic execution, cross-functional collaboration, and measurable customer impact.
+I'm excited to apply for the **${role}** position. After reviewing the job description, I see a strong alignment between your needs and my background — particularly around strategic execution, cross-functional collaboration, and measurable customer impact.
 
-In my current role, I've led initiatives that drove a 38% lift in our north-star metric and shipped 12 major releases through tight partnership with engineering and design. I thrive in environments where ambiguity is high and ownership is expected — which is exactly what stood out to me about this opportunity.
+In my current role, I've led initiatives that drove a **38% lift** in our north-star metric and shipped **12 major releases** through tight partnership with engineering and design. I thrive in environments where ambiguity is high and ownership is expected — which is exactly what stood out to me about this opportunity.
 
 I'd love the chance to discuss how my experience can help your team accelerate its goals. Thank you for considering my application.
 
-Best regards,
+Best regards,  
 Jane Doe`;
 }
