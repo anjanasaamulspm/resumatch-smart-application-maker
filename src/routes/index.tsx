@@ -72,9 +72,8 @@ function Home() {
   const parseFile = async (file: File): Promise<string> => {
     const name = file.name.toLowerCase();
     if (name.endsWith(".pdf")) {
-      const pdfjs = await import("pdfjs-dist");
-      // @ts-expect-error - worker entry has no types
-      const workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+      const pdfjs: any = await import("pdfjs-dist");
+      const workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url" as any)).default;
       pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
       const buf = await file.arrayBuffer();
       const pdf = await pdfjs.getDocument({ data: buf }).promise;
