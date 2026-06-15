@@ -228,20 +228,114 @@ function Home() {
                   ))}
                 </SelectContent>
               </Select>
+              {role === "Other" && (
+                <div className="animate-fade-in-up space-y-2 pt-2">
+                  <Label htmlFor="customRole" className="text-navy">
+                    Specify target role
+                  </Label>
+                  <Input
+                    id="customRole"
+                    value={customRole}
+                    onChange={(e) => setCustomRole(e.target.value)}
+                    placeholder="e.g. Solutions Architect"
+                    className="h-11"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="resume" className="text-navy">
-                Paste current resume
-              </Label>
-              <Textarea
-                id="resume"
-                value={resume}
-                onChange={(e) => setResume(e.target.value)}
-                placeholder="Paste the full text of your resume here..."
-                className="min-h-[180px] resize-y"
-              />
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-navy">Current resume</Label>
+                {uploadedFile && resumeMode === "upload" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadedFile(null);
+                      setResume("");
+                    }}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" /> Remove
+                  </button>
+                )}
+              </div>
+              <Tabs
+                value={resumeMode}
+                onValueChange={(v) => setResumeMode(v as "paste" | "upload")}
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="paste">Paste Text</TabsTrigger>
+                  <TabsTrigger value="upload">Upload File (PDF/Docx)</TabsTrigger>
+                </TabsList>
+                <TabsContent value="paste" className="mt-3">
+                  <Textarea
+                    id="resume"
+                    value={resume}
+                    onChange={(e) => setResume(e.target.value)}
+                    placeholder="Paste the full text of your resume here..."
+                    className="min-h-[180px] resize-y"
+                  />
+                </TabsContent>
+                <TabsContent value="upload" className="mt-3">
+                  <label
+                    htmlFor="resume-file"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOver(true);
+                    }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOver(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) void handleFile(f);
+                    }}
+                    className={`flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+                      dragOver
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-secondary/40 hover:border-primary/50 hover:bg-secondary/60"
+                    }`}
+                  >
+                    {parsing ? (
+                      <>
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">Parsing file…</p>
+                      </>
+                    ) : uploadedFile ? (
+                      <>
+                        <FileText className="h-6 w-6 text-primary" />
+                        <p className="text-sm font-medium text-navy">{uploadedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {resume.length.toLocaleString()} characters extracted · click to replace
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6 text-primary" />
+                        <p className="text-sm font-medium text-navy">
+                          Drag &amp; drop, or click to upload
+                        </p>
+                        <p className="text-xs text-muted-foreground">PDF, DOCX, or TXT</p>
+                      </>
+                    )}
+                    <input
+                      id="resume-file"
+                      type="file"
+                      accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleFile(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </TabsContent>
+              </Tabs>
             </div>
+
 
             <div className="space-y-2">
               <Label htmlFor="jd" className="text-navy">
