@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Sparkles, Copy, Download, FileText, Mail, Check, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { generateApplication } from "@/lib/dify.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -57,21 +59,35 @@ function Home() {
 
   const canGenerate = role && resume.trim().length > 30 && jd.trim().length > 30 && !loading;
 
-  const handleGenerate = () => {
+  const callDify = useServerFn(generateApplication);
+
+  const handleGenerate = async () => {
     if (!canGenerate) {
       toast.error("Fill in role, resume, and job description first.");
       return;
     }
     setLoading(true);
     setResult(null);
-    // Simulated generation — replace with real AI call later.
-    setTimeout(() => {
-      setResult({
-        resume: sampleResume(role, resume, jd),
-        letter: sampleLetter(role, jd),
+    try {
+      const out = await callDify({
+        data: {
+          targetRole: role,
+          currentResume: resume,
+          jobDescription: jd,
+        },
       });
+      if (!out.tailored_resume && !out.cover_letter) {
+        throw new Error("Empty response from Dify workflow");
+      }
+      setResult({ resume: out.tailored_resume, letter: out.cover_letter });
+    } catch (err) {
+      console.error(err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to generate. Please try again."
+      );
+    } finally {
       setLoading(false);
-    }, 1800);
+    }
   };
 
   const handleCopy = async (text: string, key: string) => {
