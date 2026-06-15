@@ -86,7 +86,7 @@ function Home() {
       return text.trim();
     }
     if (name.endsWith(".docx")) {
-      const mammoth = await import("mammoth/mammoth.browser");
+      const mammoth: any = await import("mammoth/mammoth.browser" as any);
       const buf = await file.arrayBuffer();
       const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
       return value.trim();
