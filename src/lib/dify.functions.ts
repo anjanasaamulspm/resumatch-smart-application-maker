@@ -17,7 +17,9 @@ export const generateApplication = createServerFn({ method: "POST" })
     const apiKey = process.env.DIFY_API_KEY;
     if (!apiKey) throw new Error("DIFY_API_KEY is not configured");
 
-    const res = await fetch("https://api.dify.ai/v1/workflows/run", {
+    const apiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1/workflows/run";
+
+    const res = await fetch(apiUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
