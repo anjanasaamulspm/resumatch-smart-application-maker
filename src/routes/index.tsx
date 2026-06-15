@@ -126,7 +126,7 @@ function Home() {
     try {
       const out = await callDify({
         data: {
-          targetRole: role,
+          targetRole: effectiveRole,
           currentResume: resume,
           jobDescription: jd,
         },
