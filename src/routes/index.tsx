@@ -52,15 +52,70 @@ const ROLES = [
 
 function Home() {
   const [role, setRole] = useState<string>("");
+  const [customRole, setCustomRole] = useState("");
   const [resume, setResume] = useState("");
+  const [resumeMode, setResumeMode] = useState<"paste" | "upload">("paste");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [jd, setJd] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ resume: string; letter: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const canGenerate = !!role && resume.trim().length > 0 && jd.trim().length > 0 && !loading;
+  const effectiveRole = role === "Other" ? customRole.trim() : role;
+  const canGenerate =
+    !!effectiveRole && resume.trim().length > 0 && jd.trim().length > 0 && !loading && !parsing;
 
   const callDify = useServerFn(generateApplication);
+
+  const parseFile = async (file: File): Promise<string> => {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".pdf")) {
+      const pdfjs = await import("pdfjs-dist");
+      // @ts-expect-error - worker entry has no types
+      const workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+      pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: buf }).promise;
+      let text = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((it: any) => it.str).join(" ") + "\n\n";
+      }
+      return text.trim();
+    }
+    if (name.endsWith(".docx")) {
+      const mammoth = await import("mammoth/mammoth.browser");
+      const buf = await file.arrayBuffer();
+      const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
+      return value.trim();
+    }
+    if (name.endsWith(".txt")) {
+      return (await file.text()).trim();
+    }
+    throw new Error("Unsupported file type. Use PDF, DOCX, or TXT.");
+  };
+
+  const handleFile = async (file: File) => {
+    setParsing(true);
+    setUploadedFile(file);
+    try {
+      const text = await parseFile(file);
+      if (!text) throw new Error("No text could be extracted from the file.");
+      setResume(text);
+      toast.success(`Parsed ${file.name}`);
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to parse file.");
+      setUploadedFile(null);
+      setResume("");
+    } finally {
+      setParsing(false);
+    }
+  };
+
 
   const handleGenerate = async () => {
     if (!canGenerate) {
