@@ -485,12 +485,16 @@ function ResultTabs({
   result,
   copied,
   onCopy,
-  onDownload,
+  onDownloadText,
+  onDownloadWord,
+  onDownloadPdf,
 }: {
   result: { resume: string; letter: string };
   copied: string | null;
   onCopy: (text: string, key: string) => void;
-  onDownload: (text: string, filename: string) => void;
+  onDownloadText: (text: string, filename: string) => void;
+  onDownloadWord: (text: string, filename: string) => void;
+  onDownloadPdf: (text: string, filename: string) => Promise<void>;
 }) {
   return (
     <div className="animate-fade-in-up">
@@ -509,7 +513,9 @@ function ResultTabs({
         <TabsContent value="resume" className="mt-4">
           <ActionBar
             onCopy={() => onCopy(result.resume, "resume")}
-            onDownload={() => onDownload(result.resume, "tailored-resume.txt")}
+            onDownloadPdf={() => onDownloadPdf(result.resume, "tailored-resume.pdf")}
+            onDownloadWord={() => onDownloadWord(result.resume, "tailored-resume.doc")}
+            onDownloadText={() => onDownloadText(result.resume, "tailored-resume.txt")}
             copied={copied === "resume"}
           />
           <div className="markdown-content mt-4 max-h-[520px] overflow-auto rounded-lg border border-border bg-secondary/40 p-5">
@@ -522,7 +528,9 @@ function ResultTabs({
         <TabsContent value="letter" className="mt-4">
           <ActionBar
             onCopy={() => onCopy(result.letter, "letter")}
-            onDownload={() => onDownload(result.letter, "cover-letter.txt")}
+            onDownloadPdf={() => onDownloadPdf(result.letter, "cover-letter.pdf")}
+            onDownloadWord={() => onDownloadWord(result.letter, "cover-letter.doc")}
+            onDownloadText={() => onDownloadText(result.letter, "cover-letter.txt")}
             copied={copied === "letter"}
           />
           <div className="markdown-content mt-4 max-h-[520px] overflow-auto rounded-lg border border-border bg-secondary/40 p-5">
@@ -538,22 +546,58 @@ function ResultTabs({
 
 function ActionBar({
   onCopy,
-  onDownload,
+  onDownloadPdf,
+  onDownloadWord,
+  onDownloadText,
   copied,
 }: {
   onCopy: () => void;
-  onDownload: () => void;
+  onDownloadPdf: () => void | Promise<void>;
+  onDownloadWord: () => void;
+  onDownloadText: () => void;
   copied: boolean;
 }) {
+  const [busy, setBusy] = useState<null | "pdf">(null);
+  const handlePdf = async () => {
+    setBusy("pdf");
+    try {
+      await onDownloadPdf();
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button variant="outline" size="sm" onClick={onCopy} className="gap-2">
+      <Button variant="ghost" size="sm" onClick={onCopy} className="gap-2">
         {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-        {copied ? "Copied" : "Copy to clipboard"}
+        {copied ? "Copied" : "Copy"}
       </Button>
-      <Button size="sm" onClick={onDownload} className="btn-electric gap-2">
-        <Download className="h-4 w-4" />
-        Download as PDF
+      <Button
+        size="sm"
+        onClick={handlePdf}
+        disabled={busy === "pdf"}
+        className="gap-2 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground shadow-sm hover:opacity-95"
+      >
+        {busy === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+        Download PDF
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onDownloadWord}
+        className="gap-2 border-navy/20 text-navy hover:bg-navy hover:text-primary-foreground"
+      >
+        <FileType2 className="h-4 w-4" />
+        Download Word
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onDownloadText}
+        className="gap-2"
+      >
+        <FileText className="h-4 w-4" />
+        Download Text
       </Button>
     </div>
   );
