@@ -152,15 +152,56 @@ function Home() {
     setTimeout(() => setCopied(null), 1500);
   };
 
-  const handleDownload = (text: string, filename: string) => {
+  const handleDownloadText = (text: string, filename: string) => {
     const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Download started");
+    triggerDownload(blob, filename);
+    toast.success("Text file downloaded");
+  };
+
+  const handleDownloadWord = (text: string, filename: string) => {
+    const html = markdownTextToHtml(text);
+    const doc = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Export</title></head><body>${html}</body></html>`;
+    const blob = new Blob(["\ufeff", doc], { type: "application/msword" });
+    triggerDownload(blob, filename);
+    toast.success("Word file downloaded");
+  };
+
+  const handleDownloadPdf = async (text: string, filename: string) => {
+    const html2pdf = (await import("html2pdf.js")).default;
+    const container = document.createElement("div");
+    container.style.cssText =
+      "padding:48px;font-family:Georgia,'Times New Roman',serif;color:#0f172a;font-size:12pt;line-height:1.55;background:#ffffff;max-width:780px;";
+    container.innerHTML = `<style>
+      h1{font-size:22pt;margin:0 0 10px;color:#0b1e3f;}
+      h2{font-size:15pt;margin:18px 0 6px;color:#0b1e3f;border-bottom:1px solid #e2e8f0;padding-bottom:4px;}
+      h3{font-size:12.5pt;margin:14px 0 4px;color:#0b1e3f;}
+      p{margin:6px 0;}
+      ul,ol{margin:6px 0 6px 22px;}
+      li{margin:3px 0;}
+      strong{color:#0b1e3f;}
+      hr{border:none;border-top:1px solid #e2e8f0;margin:12px 0;}
+      a{color:#2563eb;text-decoration:none;}
+    </style>${markdownTextToHtml(text)}`;
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "position:fixed;left:-10000px;top:0;";
+    wrapper.appendChild(container);
+    document.body.appendChild(wrapper);
+    try {
+      await html2pdf()
+        .set({
+          margin: [10, 10, 10, 10],
+          filename,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+        })
+        .from(container)
+        .save();
+      toast.success("PDF downloaded");
+    } finally {
+      document.body.removeChild(wrapper);
+    }
   };
 
   return (
