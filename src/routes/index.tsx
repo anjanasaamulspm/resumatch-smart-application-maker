@@ -50,6 +50,89 @@ const ROLES = [
   "Other",
 ];
 
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function inlineMd(s: string) {
+  let out = escapeHtml(s);
+  out = out.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/(^|[^*])\*(?!\s)([^*]+?)\*/g, "$1<em>$2</em>");
+  out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
+  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  return out;
+}
+
+function markdownTextToHtml(md: string): string {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const html: string[] = [];
+  let listType: "ul" | "ol" | null = null;
+  const closeList = () => {
+    if (listType) {
+      html.push(`</${listType}>`);
+      listType = null;
+    }
+  };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line.trim()) {
+      closeList();
+      continue;
+    }
+    const h = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (h) {
+      closeList();
+      const level = h[1].length;
+      html.push(`<h${level}>${inlineMd(h[2])}</h${level}>`);
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      if (listType !== "ul") {
+        closeList();
+        html.push("<ul>");
+        listType = "ul";
+      }
+      html.push(`<li>${inlineMd(line.replace(/^\s*[-*]\s+/, ""))}</li>`);
+      continue;
+    }
+    const ol = /^\s*\d+\.\s+/.exec(line);
+    if (ol) {
+      if (listType !== "ol") {
+        closeList();
+        html.push("<ol>");
+        listType = "ol";
+      }
+      html.push(`<li>${inlineMd(line.replace(/^\s*\d+\.\s+/, ""))}</li>`);
+      continue;
+    }
+    if (/^---+$/.test(line)) {
+      closeList();
+      html.push("<hr/>");
+      continue;
+    }
+    closeList();
+    html.push(`<p>${inlineMd(line)}</p>`);
+  }
+  closeList();
+  return html.join("\n");
+}
+
+
+
 function Home() {
   const [role, setRole] = useState<string>("");
   const [customRole, setCustomRole] = useState("");
