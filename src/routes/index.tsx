@@ -131,8 +131,6 @@ function markdownTextToHtml(md: string): string {
   return html.join("\n");
 }
 
-
-
 function Home() {
   const [role, setRole] = useState<string>("");
   const [customRole, setCustomRole] = useState("");
@@ -198,7 +196,6 @@ function Home() {
     }
   };
 
-
   const handleGenerate = async () => {
     if (!canGenerate) {
       toast.error("Fill in role, resume, and job description first.");
@@ -214,15 +211,29 @@ function Home() {
           jobDescription: jd,
         },
       });
-      if (!out.tailored_resume && !out.cover_letter) {
-        throw new Error("Empty response from Dify workflow");
+
+      // Check the newly flattened backend data structure safely
+      if (!out?.tailored_resume && !out?.cover_letter) {
+        throw new Error("Empty response from application generation workspace.");
       }
-      setResult({ resume: out.tailored_resume, letter: out.cover_letter });
+
+      // Map the response straight to your layout parameters 
+      setResult({
+        resume: out.tailored_resume || "",
+        letter: out.cover_letter || "",
+      });
+
+      toast.success("Application generated successfully!");
     } catch (err) {
       console.error(err);
-      toast.error(
-        err instanceof Error ? err.message : "Failed to generate. Please try again."
-      );
+      
+      // Cleanly capture high traffic abort messages from your server function
+      const errorMsg = err instanceof Error ? err.message : "";
+      if (errorMsg.includes("TIMEOUT_ERROR") || errorMsg.includes("busy")) {
+        toast.error("The engine is currently busy with high traffic. Please try again in a moment.");
+      } else {
+        toast.error(errorMsg || "Failed to generate. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -460,7 +471,6 @@ function Home() {
               </Tabs>
             </div>
 
-
             <div className="space-y-2">
               <Label htmlFor="jd" className="text-navy">
                 Paste target job description
@@ -494,19 +504,26 @@ function Home() {
           </div>
         </section>
 
-        {/* Outputs */}
+        {/* Outputs Panel */}
         <section className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
           {loading ? (
             <LoadingState />
           ) : result ? (
-            <ResultTabs
-              result={result}
-              copied={copied}
-              onCopy={handleCopy}
-              onDownloadText={handleDownloadText}
-              onDownloadWord={handleDownloadWord}
-              onDownloadPdf={handleDownloadPdf}
-            />
+            <div className="space-y-4">
+              {/* Guest Reminder Banner */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900 shadow-sm animate-fade-in-up">
+                💡 <strong>Logged in as Guest:</strong> Make sure to copy or download your files before closing the tab. Create an account to save histories permanently!
+              </div>
+
+              <ResultTabs
+                result={result}
+                copied={copied}
+                onCopy={handleCopy}
+                onDownloadText={handleDownloadText}
+                onDownloadWord={handleDownloadWord}
+                onDownloadPdf={handleDownloadPdf}
+              />
+            </div>
           ) : (
             <EmptyState />
           )}
@@ -517,7 +534,7 @@ function Home() {
         <div className="mx-auto max-w-7xl px-4 text-center text-xs text-muted-foreground sm:px-6 lg:px-8">
           © {new Date().getFullYear()} ResuMatch AI. Built for job seekers who don't have time to waste.
         </div>
-      </footer>
+      </header>
     </div>
   );
 }
@@ -711,47 +728,4 @@ function EmptyIllustration() {
       <path d="M144 34l5 5 9-10" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
-}
-
-function sampleResume(role: string, _resume: string, _jd: string) {
-  return `## JANE DOE
-**${role}** | jane.doe@email.com | +1 (555) 123-4567 | linkedin.com/in/janedoe
-
-## Professional Summary
-Results-driven **${role}** with a track record of shipping high-impact products and driving measurable outcomes. Tailored for the target role with emphasis on the keywords and competencies highlighted in the job description.
-
-## Core Skills
-- Strategy & Roadmapping
-- Cross-functional Leadership
-- Data-Driven Decision Making
-- Stakeholder Management
-- Agile / Scrum
-- Customer Research
-
-## Experience
-
-### Senior ${role} — Acme Corp (2022 – Present)
-- Led initiatives that increased key metric by **38% YoY** by aligning teams around a focused roadmap.
-- Partnered with engineering and design to deliver **12 major releases** on schedule.
-- Built a measurement framework adopted across **4 product lines**.
-
-### ${role} — Northwind Labs (2019 – 2022)
-- Owned end-to-end delivery of a flagship feature used by **1.2M monthly users**.
-- Reduced churn by **17%** via targeted onboarding experiments.
-
-## Education
-**B.S., Computer Science** — State University (2019)`;
-}
-
-function sampleLetter(role: string, _jd: string) {
-  return `Dear Hiring Team,
-
-I'm excited to apply for the **${role}** position. After reviewing the job description, I see a strong alignment between your needs and my background — particularly around strategic execution, cross-functional collaboration, and measurable customer impact.
-
-In my current role, I've led initiatives that drove a **38% lift** in our north-star metric and shipped **12 major releases** through tight partnership with engineering and design. I thrive in environments where ambiguity is high and ownership is expected — which is exactly what stood out to me about this opportunity.
-
-I'd love the chance to discuss how my experience can help your team accelerate its goals. Thank you for considering my application.
-
-Best regards,  
-Jane Doe`;
 }
