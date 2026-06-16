@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, Copy, Download, FileText, Mail, Check, Loader2, Upload, X } from "lucide-react";
+import { Sparkles, Copy, FileText, FileType2, FileDown, Mail, Check, Loader2, Upload, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,89 @@ const ROLES = [
   "Project Manager",
   "Other",
 ];
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function inlineMd(s: string) {
+  let out = escapeHtml(s);
+  out = out.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/(^|[^*])\*(?!\s)([^*]+?)\*/g, "$1<em>$2</em>");
+  out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
+  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  return out;
+}
+
+function markdownTextToHtml(md: string): string {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const html: string[] = [];
+  let listType: "ul" | "ol" | null = null;
+  const closeList = () => {
+    if (listType) {
+      html.push(`</${listType}>`);
+      listType = null;
+    }
+  };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line.trim()) {
+      closeList();
+      continue;
+    }
+    const h = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (h) {
+      closeList();
+      const level = h[1].length;
+      html.push(`<h${level}>${inlineMd(h[2])}</h${level}>`);
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      if (listType !== "ul") {
+        closeList();
+        html.push("<ul>");
+        listType = "ul";
+      }
+      html.push(`<li>${inlineMd(line.replace(/^\s*[-*]\s+/, ""))}</li>`);
+      continue;
+    }
+    const ol = /^\s*\d+\.\s+/.exec(line);
+    if (ol) {
+      if (listType !== "ol") {
+        closeList();
+        html.push("<ol>");
+        listType = "ol";
+      }
+      html.push(`<li>${inlineMd(line.replace(/^\s*\d+\.\s+/, ""))}</li>`);
+      continue;
+    }
+    if (/^---+$/.test(line)) {
+      closeList();
+      html.push("<hr/>");
+      continue;
+    }
+    closeList();
+    html.push(`<p>${inlineMd(line)}</p>`);
+  }
+  closeList();
+  return html.join("\n");
+}
+
+
 
 function Home() {
   const [role, setRole] = useState<string>("");
@@ -152,15 +235,56 @@ function Home() {
     setTimeout(() => setCopied(null), 1500);
   };
 
-  const handleDownload = (text: string, filename: string) => {
+  const handleDownloadText = (text: string, filename: string) => {
     const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Download started");
+    triggerDownload(blob, filename);
+    toast.success("Text file downloaded");
+  };
+
+  const handleDownloadWord = (text: string, filename: string) => {
+    const html = markdownTextToHtml(text);
+    const doc = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Export</title></head><body>${html}</body></html>`;
+    const blob = new Blob(["\ufeff", doc], { type: "application/msword" });
+    triggerDownload(blob, filename);
+    toast.success("Word file downloaded");
+  };
+
+  const handleDownloadPdf = async (text: string, filename: string) => {
+    const html2pdf = (await import("html2pdf.js")).default;
+    const container = document.createElement("div");
+    container.style.cssText =
+      "padding:48px;font-family:Georgia,'Times New Roman',serif;color:#0f172a;font-size:12pt;line-height:1.55;background:#ffffff;max-width:780px;";
+    container.innerHTML = `<style>
+      h1{font-size:22pt;margin:0 0 10px;color:#0b1e3f;}
+      h2{font-size:15pt;margin:18px 0 6px;color:#0b1e3f;border-bottom:1px solid #e2e8f0;padding-bottom:4px;}
+      h3{font-size:12.5pt;margin:14px 0 4px;color:#0b1e3f;}
+      p{margin:6px 0;}
+      ul,ol{margin:6px 0 6px 22px;}
+      li{margin:3px 0;}
+      strong{color:#0b1e3f;}
+      hr{border:none;border-top:1px solid #e2e8f0;margin:12px 0;}
+      a{color:#2563eb;text-decoration:none;}
+    </style>${markdownTextToHtml(text)}`;
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "position:fixed;left:-10000px;top:0;";
+    wrapper.appendChild(container);
+    document.body.appendChild(wrapper);
+    try {
+      await html2pdf()
+        .set({
+          margin: [10, 10, 10, 10],
+          filename,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+        } as any)
+        .from(container)
+        .save();
+      toast.success("PDF downloaded");
+    } finally {
+      document.body.removeChild(wrapper);
+    }
   };
 
   return (
@@ -379,7 +503,9 @@ function Home() {
               result={result}
               copied={copied}
               onCopy={handleCopy}
-              onDownload={handleDownload}
+              onDownloadText={handleDownloadText}
+              onDownloadWord={handleDownloadWord}
+              onDownloadPdf={handleDownloadPdf}
             />
           ) : (
             <EmptyState />
@@ -444,12 +570,16 @@ function ResultTabs({
   result,
   copied,
   onCopy,
-  onDownload,
+  onDownloadText,
+  onDownloadWord,
+  onDownloadPdf,
 }: {
   result: { resume: string; letter: string };
   copied: string | null;
   onCopy: (text: string, key: string) => void;
-  onDownload: (text: string, filename: string) => void;
+  onDownloadText: (text: string, filename: string) => void;
+  onDownloadWord: (text: string, filename: string) => void;
+  onDownloadPdf: (text: string, filename: string) => Promise<void>;
 }) {
   return (
     <div className="animate-fade-in-up">
@@ -468,7 +598,9 @@ function ResultTabs({
         <TabsContent value="resume" className="mt-4">
           <ActionBar
             onCopy={() => onCopy(result.resume, "resume")}
-            onDownload={() => onDownload(result.resume, "tailored-resume.txt")}
+            onDownloadPdf={() => onDownloadPdf(result.resume, "tailored-resume.pdf")}
+            onDownloadWord={() => onDownloadWord(result.resume, "tailored-resume.doc")}
+            onDownloadText={() => onDownloadText(result.resume, "tailored-resume.txt")}
             copied={copied === "resume"}
           />
           <div className="markdown-content mt-4 max-h-[520px] overflow-auto rounded-lg border border-border bg-secondary/40 p-5">
@@ -481,7 +613,9 @@ function ResultTabs({
         <TabsContent value="letter" className="mt-4">
           <ActionBar
             onCopy={() => onCopy(result.letter, "letter")}
-            onDownload={() => onDownload(result.letter, "cover-letter.txt")}
+            onDownloadPdf={() => onDownloadPdf(result.letter, "cover-letter.pdf")}
+            onDownloadWord={() => onDownloadWord(result.letter, "cover-letter.doc")}
+            onDownloadText={() => onDownloadText(result.letter, "cover-letter.txt")}
             copied={copied === "letter"}
           />
           <div className="markdown-content mt-4 max-h-[520px] overflow-auto rounded-lg border border-border bg-secondary/40 p-5">
@@ -497,22 +631,58 @@ function ResultTabs({
 
 function ActionBar({
   onCopy,
-  onDownload,
+  onDownloadPdf,
+  onDownloadWord,
+  onDownloadText,
   copied,
 }: {
   onCopy: () => void;
-  onDownload: () => void;
+  onDownloadPdf: () => void | Promise<void>;
+  onDownloadWord: () => void;
+  onDownloadText: () => void;
   copied: boolean;
 }) {
+  const [busy, setBusy] = useState<null | "pdf">(null);
+  const handlePdf = async () => {
+    setBusy("pdf");
+    try {
+      await onDownloadPdf();
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button variant="outline" size="sm" onClick={onCopy} className="gap-2">
+      <Button variant="ghost" size="sm" onClick={onCopy} className="gap-2">
         {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-        {copied ? "Copied" : "Copy to clipboard"}
+        {copied ? "Copied" : "Copy"}
       </Button>
-      <Button size="sm" onClick={onDownload} className="btn-electric gap-2">
-        <Download className="h-4 w-4" />
-        Download as PDF
+      <Button
+        size="sm"
+        onClick={handlePdf}
+        disabled={busy === "pdf"}
+        className="gap-2 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground shadow-sm hover:opacity-95"
+      >
+        {busy === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+        Download PDF
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onDownloadWord}
+        className="gap-2 border-navy/20 text-navy hover:bg-navy hover:text-primary-foreground"
+      >
+        <FileType2 className="h-4 w-4" />
+        Download Word
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onDownloadText}
+        className="gap-2"
+      >
+        <FileText className="h-4 w-4" />
+        Download Text
       </Button>
     </div>
   );
