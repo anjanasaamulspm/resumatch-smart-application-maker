@@ -420,7 +420,9 @@ function Home() {
               result={result}
               copied={copied}
               onCopy={handleCopy}
-              onDownload={handleDownload}
+              onDownloadText={handleDownloadText}
+              onDownloadWord={handleDownloadWord}
+              onDownloadPdf={handleDownloadPdf}
             />
           ) : (
             <EmptyState />
