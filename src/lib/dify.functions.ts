@@ -19,17 +19,6 @@ export const generateApplication = createServerFn({ method: "POST" })
 
     const apiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1/workflows/run";
 
-    // Parse the file data cleanly if it's sent as a string json metadata block, 
-    // or pass it along natively if it's already an object.
-    let filePayload;
-    try {
-      filePayload = typeof data.currentResume === 'string' && data.currentResume.startsWith('{') 
-        ? JSON.parse(data.currentResume) 
-        : data.currentResume;
-    } catch (e) {
-      filePayload = data.currentResume;
-    }
-
     const res = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -39,8 +28,7 @@ export const generateApplication = createServerFn({ method: "POST" })
       body: JSON.stringify({
         inputs: {
           Target_Role: data.targetRole,
-          // Fixed: Wrapped the file filePayload into an array structure []
-          Current_Resume: Array.isArray(filePayload) ? filePayload : [filePayload],
+          Current_Resume: [data.currentResume],
           Job_description: data.jobDescription,
         },
         response_mode: "blocking",
