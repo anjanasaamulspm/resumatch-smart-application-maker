@@ -278,7 +278,7 @@ function Home() {
           html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
           pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-        })
+        } as any)
         .from(container)
         .save();
       toast.success("PDF downloaded");
