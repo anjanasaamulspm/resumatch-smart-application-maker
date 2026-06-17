@@ -78,50 +78,10 @@ function Home() {
     !!effectiveRole && resume.trim().length > 0 && jd.trim().length > 0 && !loading && !parsing;
 
 
-  const uploadFileToDify = async (file: File): Promise<string> => {
-    const baseUrl = import.meta.env.VITE_DIFY_API_URL;
-    const apiKey = import.meta.env.VITE_DIFY_API_KEY;
-    if (!baseUrl || !apiKey) throw new Error("Missing VITE_DIFY_API_URL or VITE_DIFY_API_KEY");
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("user", clientUser);
-    const res = await fetch(`${baseUrl}/files/upload`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: fd,
-    });
-    if (!res.ok) throw new Error(`File upload failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
-    const json = await res.json();
-    if (!json?.id) throw new Error("Upload response missing id");
-    return json.id as string;
-  };
+  const uploadFn = useServerFn(uploadResumeToDify);
+  const runFn = useServerFn(runDifyWorkflow);
 
-  const runDifyWorkflow = async (uploadFileId: string, targetRole: string, jobDescription: string) => {
-    const baseUrl = import.meta.env.VITE_DIFY_API_URL;
-    const apiKey = import.meta.env.VITE_DIFY_API_KEY;
-    const res = await fetch(`${baseUrl}/workflows/run`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        inputs: {
-          Target_Role: targetRole,
-          Job_Description: jobDescription,
-          Current_Resume: {
-            transfer_method: "local_file",
-            type: "document",
-            upload_file_id: uploadFileId,
-          },
-        },
-        response_mode: "blocking",
-        user: clientUser,
-      }),
-    });
-    if (!res.ok) throw new Error(`Workflow failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
-    return res.json();
-  };
+
 
 
   const parseFile = async (file: File): Promise<string> => {
