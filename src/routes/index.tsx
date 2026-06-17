@@ -555,11 +555,11 @@ function ActionBar({
     <div className="flex flex-wrap items-center justify-end gap-2">
       <Button variant="outline" size="sm" onClick={onCopy} className="gap-2">
         {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-        {copied ? "Copied" : "Copy to clipboard"}
+        {copied ? "Copied" : "Copy Text"}
       </Button>
       <Button size="sm" onClick={onDownload} className="btn-electric gap-2">
         <Download className="h-4 w-4" />
-        Download as PDF
+        Download TXT
       </Button>
     </div>
   );
