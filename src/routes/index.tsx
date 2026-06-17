@@ -145,12 +145,18 @@ function Home() {
           ? uploadedFile
           : new File([resume], "resume.txt", { type: "text/plain" });
 
-      const uploadFileId = await uploadFileToDify(fileToSend);
-      const json = await runDifyWorkflow(uploadFileId, effectiveRole, jd);
+      const fileBase64 = await fileToBase64(fileToSend);
+      const { id: uploadFileId } = await uploadFn({
+        data: {
+          fileBase64,
+          fileName: fileToSend.name,
+          mimeType: fileToSend.type || "application/octet-stream",
+        },
+      });
+      const { tailoredResume, coverLetter } = await runFn({
+        data: { uploadFileId, targetRole: effectiveRole, jobDescription: jd },
+      });
 
-      const outputs = json?.data?.outputs ?? {};
-      const tailoredResume = outputs.LLM3_textString ?? "";
-      const coverLetter = outputs.LLM2_textString ?? "";
       if (!tailoredResume && !coverLetter) {
         throw new Error("Empty response from Dify workflow");
       }
