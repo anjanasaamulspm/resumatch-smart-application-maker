@@ -169,17 +169,22 @@ function Home() {
     setLoading(true);
     setResult(null);
     try {
-      const out = await callDify({
-        data: {
-          targetRole: effectiveRole,
-          currentResume: resume,
-          jobDescription: jd,
-        },
-      });
-      if (!out.tailored_resume && !out.cover_letter) {
+      // Build the file to send: either the uploaded file, or wrap pasted text as a .txt File.
+      const fileToSend =
+        resumeMode === "upload" && uploadedFile
+          ? uploadedFile
+          : new File([resume], "resume.txt", { type: "text/plain" });
+
+      const uploadFileId = await uploadFileToDify(fileToSend);
+      const json = await runDifyWorkflow(uploadFileId, effectiveRole, jd);
+
+      const outputs = json?.data?.outputs ?? {};
+      const tailoredResume = outputs.LLM3_textString ?? "";
+      const coverLetter = outputs.LLM2_textString ?? "";
+      if (!tailoredResume && !coverLetter) {
         throw new Error("Empty response from Dify workflow");
       }
-      setResult({ resume: out.tailored_resume, letter: out.cover_letter });
+      setResult({ resume: tailoredResume, letter: coverLetter });
     } catch (err) {
       console.error(err);
       toast.error(
