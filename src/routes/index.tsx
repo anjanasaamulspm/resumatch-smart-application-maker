@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { Sparkles, Copy, Download, FileText, Mail, Check, Loader2, Upload, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -17,7 +16,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { generateApplication } from "@/lib/dify.functions";
+
+const clientUser = "resumatch-client-user";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -67,7 +67,52 @@ function Home() {
   const canGenerate =
     !!effectiveRole && resume.trim().length > 0 && jd.trim().length > 0 && !loading && !parsing;
 
-  const callDify = useServerFn(generateApplication);
+
+  const uploadFileToDify = async (file: File): Promise<string> => {
+    const baseUrl = import.meta.env.VITE_DIFY_API_URL;
+    const apiKey = import.meta.env.VITE_DIFY_API_KEY;
+    if (!baseUrl || !apiKey) throw new Error("Missing VITE_DIFY_API_URL or VITE_DIFY_API_KEY");
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("user", clientUser);
+    const res = await fetch(`${baseUrl}/files/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: fd,
+    });
+    if (!res.ok) throw new Error(`File upload failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+    const json = await res.json();
+    if (!json?.id) throw new Error("Upload response missing id");
+    return json.id as string;
+  };
+
+  const runDifyWorkflow = async (uploadFileId: string, targetRole: string, jobDescription: string) => {
+    const baseUrl = import.meta.env.VITE_DIFY_API_URL;
+    const apiKey = import.meta.env.VITE_DIFY_API_KEY;
+    const res = await fetch(`${baseUrl}/workflows/run`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        inputs: {
+          Target_Role: targetRole,
+          Job_Description: jobDescription,
+          Current_Resume: {
+            transfer_method: "local_file",
+            type: "document",
+            upload_file_id: uploadFileId,
+          },
+        },
+        response_mode: "blocking",
+        user: clientUser,
+      }),
+    });
+    if (!res.ok) throw new Error(`Workflow failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+    return res.json();
+  };
+
 
   const parseFile = async (file: File): Promise<string> => {
     const name = file.name.toLowerCase();
@@ -124,17 +169,22 @@ function Home() {
     setLoading(true);
     setResult(null);
     try {
-      const out = await callDify({
-        data: {
-          targetRole: effectiveRole,
-          currentResume: resume,
-          jobDescription: jd,
-        },
-      });
-      if (!out.tailored_resume && !out.cover_letter) {
+      // Build the file to send: either the uploaded file, or wrap pasted text as a .txt File.
+      const fileToSend =
+        resumeMode === "upload" && uploadedFile
+          ? uploadedFile
+          : new File([resume], "resume.txt", { type: "text/plain" });
+
+      const uploadFileId = await uploadFileToDify(fileToSend);
+      const json = await runDifyWorkflow(uploadFileId, effectiveRole, jd);
+
+      const outputs = json?.data?.outputs ?? {};
+      const tailoredResume = outputs.LLM3_textString ?? "";
+      const coverLetter = outputs.LLM2_textString ?? "";
+      if (!tailoredResume && !coverLetter) {
         throw new Error("Empty response from Dify workflow");
       }
-      setResult({ resume: out.tailored_resume, letter: out.cover_letter });
+      setResult({ resume: tailoredResume, letter: coverLetter });
     } catch (err) {
       console.error(err);
       toast.error(
@@ -176,9 +226,6 @@ function Home() {
               ResuMatch <span className="text-primary">AI</span>
             </span>
           </div>
-          <Button variant="outline" className="border-navy/20 text-navy hover:bg-navy hover:text-primary-foreground">
-            Login / Sign Up
-          </Button>
         </div>
       </header>
 
@@ -508,11 +555,11 @@ function ActionBar({
     <div className="flex flex-wrap items-center justify-end gap-2">
       <Button variant="outline" size="sm" onClick={onCopy} className="gap-2">
         {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-        {copied ? "Copied" : "Copy to clipboard"}
+        {copied ? "Copied" : "Copy Text"}
       </Button>
       <Button size="sm" onClick={onDownload} className="btn-electric gap-2">
         <Download className="h-4 w-4" />
-        Download as PDF
+        Download TXT
       </Button>
     </div>
   );
