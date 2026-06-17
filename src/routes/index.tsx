@@ -226,9 +226,6 @@ function Home() {
               ResuMatch <span className="text-primary">AI</span>
             </span>
           </div>
-          <Button variant="outline" className="border-navy/20 text-navy hover:bg-navy hover:text-primary-foreground">
-            Login / Sign Up
-          </Button>
         </div>
       </header>
 
